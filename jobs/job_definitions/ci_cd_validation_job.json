@@ -1,6 +1,6 @@
 {
   "name": "ci_cd_validation_job",
-  "existing_cluster_id": "57c9da929dfc71e7",
+  "existing_cluster_id": "1010-123351-x1pedkgr-v2n",
   "notebook_task": {
     "notebook_path": "/Workspace/databricks_project/notebooks/ci_cd_validation.py"
   },
