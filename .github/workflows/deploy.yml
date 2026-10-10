@@ -1,0 +1,51 @@
+name: Deploy to Databricks
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install databricks-cli
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+      - name: Configure Databricks CLI
+        run: |
+          printf "%s\n%s\n" "${{ env.DATABRICKS_HOST }}" "${{ env.DATABRICKS_TOKEN }}" | databricks configure --token
+
+      - name: Upload notebooks to workspace
+        run: |
+          if [ -d notebooks ]; then
+            databricks workspace import_dir ./notebooks /Workspace/databricks_project --overwrite || true
+          else
+            echo "No notebooks directory found"
+          fi
+
+      - name: Create or run jobs
+        run: |
+          if [ -d jobs ]; then
+            for j in jobs/*.json; do
+              [ -f "$j" ] || continue
+              JOB_NAME=$(jq -r '.name' "$j")
+              echo "Processing job: $JOB_NAME"
+              databricks jobs create --json-file "$j" 2>/dev/null || echo "Job may already exist"
+            done
+          else
+            echo "No jobs directory found"
+          fi

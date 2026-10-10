@@ -1,0 +1,19 @@
+# This is a Declarative Automation Bundle definition for databricks_project.
+# The Databricks extension requires databricks.yml configuration file.
+# See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
+
+bundle:
+  name: databricks_project
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-56561744-7dc5.cloud.databricks.com/
+
+  ## Optionally, there could be 'staging' or 'prod' targets here.
+  #
+  # prod:
+  #   workspace:
+  #     host: https://dbc-33f2a9fe-79a8.cloud.databricks.com

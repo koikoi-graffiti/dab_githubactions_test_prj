@@ -1,0 +1,233 @@
+name: Deploy to Databricks
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      # Optional: you can set DATABRICKS_HOST in repository secrets.
+      # If not set, the workflow will try to read host from databricks.yml.
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install databricks-cli==0.17.6
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+      - name: Resolve Databricks host (from secret or databricks.yml)
+        id: resolve_host
+        run: |
+          if [ -n "${{ env.DATABRICKS_HOST }}" ]; then
+            echo "host=${{ env.DATABRICKS_HOST }}" >> $GITHUB_OUTPUT
+          else
+            if [ -f databricks.yml ]; then
+              HOST_LINE=$(grep 'host:' databricks.yml | head -n1 || true)
+              HOST=$(echo "$HOST_LINE" | sed -E 's/.*host:[[:space:]]*//')
+              echo "host=${HOST}" >> $GITHUB_OUTPUT
+            else
+              echo "host=" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Configure Databricks CLI
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          if [ -z "${{ steps.resolve_host.outputs.host }}" ]; then
+            echo "DATABRICKS host not found. Set DATABRICKS_HOST secret or add host to databricks.yml"
+            exit 1
+          fi
+          DATABRICKS_HOST="${{ steps.resolve_host.outputs.host }}"
+          printf "%s\n%s\n" "$DATABRICKS_HOST" "$DATABRICKS_TOKEN" | databricks configure --token
+
+      - name: Upload notebooks to workspace (if notebooks/)
+        run: |
+          if [ -d notebooks ]; then
+            databricks workspace import_dir ./notebooks /Workspace/databricks_project --overwrite || true
+          else
+            echo "no notebooks/ directory"
+          fi
+
+      - name: Create or update job and run (if jobs/*.json exists)
+        run: |
+          if [ -d jobs ]; then
+            for j in jobs/*.json; do
+              [ -f "$j" ] || continue
+              JOB_NAME=$(jq -r '.name' "$j")
+              echo "Processing job definition: $j (name=$JOB_NAME)"
+              # Try create; if it fails assume job exists and try find by name
+              CREATE_OUT=$(databricks jobs create --json-file "$j" 2>/dev/null || true)
+              JOB_ID=$(echo "$CREATE_OUT" | jq -r '.job_id' 2>/dev/null || true)
+              if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "null" ]; then
+                echo "Created job $JOB_ID"
+                databricks jobs run-now --job-id "$JOB_ID"
+                continue
+              fi
+              # find existing by name
+              EXISTING=$(databricks jobs list --output JSON | jq -r --arg name "$JOB_NAME" '.[] | select(.settings.name==$name) | .job_id' | head -n1 || true)
+              if [ -n "$EXISTING" ]; then
+                echo "Found existing job $EXISTING, running..."
+                databricks jobs run-now --job-id "$EXISTING"
+              else
+                echo "No job created or found for $JOB_NAME"
+              fi
+            done
+          else
+            echo "no jobs/ directory"
+          fi
+```// filepath: .github/workflows/deploy.yml
+name: Deploy to Databricks
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      # Optional: you can set DATABRICKS_HOST in repository secrets.
+      # If not set, the workflow will try to read host from databricks.yml.
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install databricks-cli==0.17.6
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+
+      - name: Resolve Databricks host (from secret or databricks.yml)
+        id: resolve_host
+        run: |
+          if [ -n "${{ env.DATABRICKS_HOST }}" ]; then
+            echo "host=${{ env.DATABRICKS_HOST }}" >> $GITHUB_OUTPUT
+          else
+            if [ -f databricks.yml ]; then
+              HOST_LINE=$(grep 'host:' databricks.yml | head -n1 || true)
+              HOST=$(echo "$HOST_LINE" | sed -E 's/.*host:[[:space:]]*//')
+              echo "host=${HOST}" >> $GITHUB_OUTPUT
+            else
+              echo "host=" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Configure Databricks CLI
+        env:
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          if [ -z "${{ steps.resolve_host.outputs.host }}" ]; then
+            echo "DATABRICKS host not found. Set DATABRICKS_HOST secret or add host to databricks.yml"
+            exit 1
+          fi
+          DATABRICKS_HOST="${{ steps.resolve_host.outputs.host }}"
+          printf "%s\n%s\n" "$DATABRICKS_HOST" "$DATABRICKS_TOKEN" | databricks configure --token
+
+      - name: Upload notebooks to workspace (if notebooks/)
+        run: |
+          if [ -d notebooks ]; then
+            databricks workspace import_dir ./notebooks /Workspace/databricks_project --overwrite || true
+          else
+            echo "no notebooks/ directory"
+          fi
+
+      - name: Create or update job and run (if jobs/*.json exists)
+        run: |
+          if [ -d jobs ]; then
+            for j in jobs/*.json; do
+              [ -f "$j" ] || continue
+              JOB_NAME=$(jq -r '.name' "$j")
+              echo "Processing job definition: $j (name=$JOB_NAME)"
+              # Try create; if it fails assume job exists and try find by name
+              CREATE_OUT=$(databricks jobs create --json-file "$j" 2>/dev/null || true)
+              JOB_ID=$(echo "$CREATE_OUT" | jq -r '.job_id' 2>/dev/null || true)
+              if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "null" ]; then
+                echo "Created job $JOB_ID"
+                databricks jobs run-now --job-id "$JOB_ID"
+                continue
+              fi
+              # find existing by name
+              EXISTING=$(databricks jobs list --output JSON | jq -r --arg name "$JOB_NAME" '.[] | select(.settings.name==$name) | .job_id' | head -n1 || true)
+              if [ -n "$EXISTING" ]; then
+                echo "Found existing job $EXISTING, running..."
+                databricks jobs run-now --job-id "$EXISTING"
+              else
+                echo "No job created or found for $JOB_NAME"
+              fi
+            done
+          else
+            echo "no jobs/ directory"
+          fi          name: Deploy to Databricks
+          on:
+            push:
+              branches: [ main ]
+          
+          jobs:
+            deploy:
+              runs-on: ubuntu-latest
+              steps:
+                - name: Checkout
+                  uses: actions/checkout@v4
+          
+                - name: Set up Python
+                  uses: actions/setup-python@v4
+                  with:
+                    python-version: '3.9'
+          
+                - name: Install databricks CLI
+                  run: pip install databricks-cli
+          
+                - name: Configure databricks CLI
+                  env:
+                    DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+                    DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+                  run: |
+                    databricks configure --token <<EOF
+                    $DATABRICKS_HOST
+                    $DATABRICKS_TOKEN
+                    EOF
+          
+                - name: Deploy bundle (placeholder)
+                  run: |
+                    # ここで databricks.yml を使ったデプロイコマンドを実行
+                    # 例: databricks bundles deploy dev
+                    echo "Run your deploy command here"# This is a Declarative Automation Bundle definition for databricks_project.
+# The Databricks extension requires databricks.yml configuration file.
+# See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
+
+bundle:
+  name: databricks_project
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-33f2a9fe-79a8.cloud.databricks.com
+
+  ## Optionally, there could be 'staging' or 'prod' targets here.
+  #
+  # prod:
+  #   workspace:
+  #     host: https://dbc-33f2a9fe-79a8.cloud.databricks.com
