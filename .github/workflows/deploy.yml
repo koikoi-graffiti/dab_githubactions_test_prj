@@ -24,13 +24,42 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install databricks-cli
+          sudo apt-get update -y
+          sudo apt-get install -y jq
 
       - name: Configure CLI
         run: |
           printf "%s\n%s\n" "${DATABRICKS_HOST}" "${DATABRICKS_TOKEN}" | databricks configure --token
 
-      - name: Upload notebooks
+      - name: Upload notebooks to Databricks workspace
         run: |
+          mkdir -p /tmp/databricks-deploy
           if [ -d notebooks ]; then
             databricks workspace import_dir ./notebooks /Workspace/databricks_project --overwrite || true
+          else
+            echo "No notebooks directory"
+          fi
+
+      - name: Create or update validation job
+        run: |
+          if [ -f jobs/job_definitions/ci_cd_validation_job.json ]; then
+            JOB_NAME=$(jq -r '.name' jobs/job_definitions/ci_cd_validation_job.json)
+            CREATE_OUT=$(databricks jobs create --json-file jobs/job_definitions/ci_cd_validation_job.json 2>/dev/null || true)
+            JOB_ID=$(echo "$CREATE_OUT" | jq -r '.job_id' 2>/dev/null || true)
+
+            if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "null" ]; then
+              echo "Created job $JOB_ID"
+              databricks jobs run-now --job-id "$JOB_ID"
+            else
+              EXISTING=$(databricks jobs list --output JSON | jq -r --arg name "$JOB_NAME" '.[] | select(.settings.name==$name) | .job_id' | head -n 1 || true)
+              if [ -n "$EXISTING" ]; then
+                echo "Found existing job $EXISTING"
+                databricks jobs run-now --job-id "$EXISTING"
+              else
+                echo "No job created or found for $JOB_NAME"
+                exit 1
+              fi
+            fi
+          else
+            echo "No Databricks job definition found"
           fi

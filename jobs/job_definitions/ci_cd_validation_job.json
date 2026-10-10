@@ -1,0 +1,33 @@
+{
+  "name": "ci_cd_validation_job",
+  "tasks": [
+    {
+      "task_key": "ci_cd_validation",
+      "notebook_task": {
+        "notebook_path": "/Workspace/databricks_project/notebooks/ci_cd_validation.py"
+      },
+      "job_cluster_key": "ci_cd_cluster",
+      "timeout_seconds": 3600
+    }
+  ],
+  "job_clusters": [
+    {
+      "job_cluster_key": "ci_cd_cluster",
+      "new_cluster": {
+        "spark_version": "15.4.x-scala2.12",
+        "data_security_mode": "SINGLE_USER",
+        "num_workers": 0,
+        "enable_serverless_compute": true,
+        "spark_conf": {
+          "spark.databricks.cluster.profile": "serverless"
+        }
+      }
+    }
+  ],
+  "max_concurrent_runs": 1,
+  "schedule": {
+    "quartz_cron_expression": "0 0 1 * * ?",
+    "timezone_id": "UTC"
+  },
+  "email_notifications": {}
+}
