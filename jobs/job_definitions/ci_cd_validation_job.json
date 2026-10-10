@@ -14,9 +14,8 @@
       "job_cluster_key": "ci_cd_cluster",
       "new_cluster": {
         "spark_version": "15.4.x-scala2.12",
-        "node_type_id": "i3.xlarge",
-        "num_workers": 1,
-        "enable_serverless_compute": false
+        "data_security_mode": "SINGLE_USER",
+        "enable_serverless_compute": true
       }
     }
   ],
