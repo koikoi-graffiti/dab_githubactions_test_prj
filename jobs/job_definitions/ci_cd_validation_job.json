@@ -1,9 +1,25 @@
 {
   "name": "ci_cd_validation_job",
-  "existing_cluster_id": "1010-123351-x1pedkgr-v2n",
-  "notebook_task": {
-    "notebook_path": "/Workspace/databricks_project/notebooks/ci_cd_validation.py"
-  },
+  "tasks": [
+    {
+      "task_key": "ci_cd_validation",
+      "notebook_task": {
+        "notebook_path": "/Workspace/databricks_project/notebooks/ci_cd_validation.py"
+      },
+      "job_cluster_key": "ci_cd_cluster"
+    }
+  ],
+  "job_clusters": [
+    {
+      "job_cluster_key": "ci_cd_cluster",
+      "new_cluster": {
+        "spark_version": "15.4.x-scala2.12",
+        "node_type_id": "i3.xlarge",
+        "num_workers": 1,
+        "enable_serverless_compute": false
+      }
+    }
+  ],
   "max_concurrent_runs": 1,
   "schedule": {
     "quartz_cron_expression": "0 0 1 * * ?",
