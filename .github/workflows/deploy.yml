@@ -30,6 +30,7 @@ jobs:
       - name: Configure CLI
         run: |
           printf "%s\n%s\n" "${DATABRICKS_HOST}" "${DATABRICKS_TOKEN}" | databricks configure --token
+          databricks jobs configure --version=2.1
 
       - name: Upload notebooks to Databricks workspace
         run: |
@@ -51,7 +52,15 @@ jobs:
               echo "Created job $JOB_ID"
               databricks jobs run-now --job-id "$JOB_ID"
             else
-              EXISTING=$(databricks jobs list --output JSON | jq -r --arg name "$JOB_NAME" '.[] | select(.settings.name==$name) | .job_id' | head -n 1 || true)
+              LIST_OUT=$(databricks jobs list --output JSON 2>/dev/null || true)
+              EXISTING=$(echo "$LIST_OUT" | jq -r --arg name "$JOB_NAME" '
+                if type == "array" then .[]
+                elif .jobs then .jobs[]
+                else empty end
+                | select((.settings.name // .name) == $name)
+                | .job_id
+              ' | head -n 1)
+
               if [ -n "$EXISTING" ]; then
                 echo "Found existing job $EXISTING"
                 databricks jobs run-now --job-id "$EXISTING"
